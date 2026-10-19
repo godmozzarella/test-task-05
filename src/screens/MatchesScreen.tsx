@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { FavoriteButton } from '../components/FavoriteButton';
 import { UpdatedAgo } from '../components/UpdatedAgo';
 import { MATCHES_URL } from '../config';
@@ -42,9 +42,10 @@ function matchDate(startsAt: string | null): string {
   }).format(date);
 }
 
-function MatchCard({ match, favorite, onToggleFavorite }: {
+function MatchCard({ match, favorite, favoritesReady, onToggleFavorite }: {
   match: Match;
   favorite: boolean;
+  favoritesReady: boolean;
   onToggleFavorite: () => void;
 }) {
   const score = match.score == null ? '—' : `${match.score.home}:${match.score.away}`;
@@ -53,7 +54,7 @@ function MatchCard({ match, favorite, onToggleFavorite }: {
       <View style={styles.cardTop}>
         <Text style={styles.date}>{matchDate(match.startsAt)}</Text>
         <Text style={styles.status}>{matchStatus(match)}</Text>
-        <FavoriteButton active={favorite} onPress={onToggleFavorite} />
+        {favoritesReady && <FavoriteButton active={favorite} onPress={onToggleFavorite} />}
       </View>
       <View style={styles.teams}>
         <Text style={styles.team}>{match.home.name}</Text>
@@ -75,9 +76,10 @@ async function fetchMatches(signal: AbortSignal): Promise<Match[]> {
 }
 
 export function MatchesScreen() {
-  const { favorites, isFavorite, toggle } = useFavorites();
+  const { favorites, ready: favoritesReady, isFavorite, toggle } = useFavorites();
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
+  const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
@@ -113,10 +115,22 @@ export function MatchesScreen() {
     return () => request.current?.abort();
   }, [loadMatches]);
 
-  const visibleMatches = matches?.filter((match) => filter === 'all' || match.status === filter) ?? [];
+  const search = query.trim().toLowerCase();
+  const visibleMatches = matches?.filter((match) =>
+    (filter === 'all' || match.status === filter) &&
+    (match.home.name.toLowerCase().includes(search) || match.away.name.toLowerCase().includes(search)),
+  ) ?? [];
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Матчи тура</Text>
+      <TextInput
+        accessibilityLabel="Поиск по названию клуба"
+        placeholder="Поиск клуба"
+        placeholderTextColor="#6b7280"
+        value={query}
+        onChangeText={setQuery}
+        style={styles.search}
+      />
       <View style={styles.filters}>
         {filters.map(({ key, label }) => (
           <Pressable
@@ -160,13 +174,16 @@ export function MatchesScreen() {
             <MatchCard
               match={item}
               favorite={isFavorite(item.id)}
+              favoritesReady={favoritesReady}
               onToggleFavorite={() => toggle(item.id)}
             />
           )}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <Text style={styles.empty}>
-              {matches?.length === 0 ? 'Матчей пока нет' : 'В этой категории матчей нет'}
+              {matches?.length === 0
+                ? 'Матчей пока нет'
+                : search ? 'Совпадений не найдено' : 'В этой категории матчей нет'}
             </Text>
           }
         />
@@ -178,6 +195,7 @@ export function MatchesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   title: { fontSize: 24, fontWeight: '700', marginBottom: 20 },
+  search: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 10, marginBottom: 12, color: '#111827' },
   filters: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   filter: { paddingVertical: 9, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#f3f4f6' },
   activeFilter: { backgroundColor: '#111827' },
