@@ -25,6 +25,6 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
   },
   active: {
-    color: '#ef3124',
+    color: '#f59e0b',
   },
 });
