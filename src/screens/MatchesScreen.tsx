@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FavoriteButton } from '../components/FavoriteButton';
 import { UpdatedAgo } from '../components/UpdatedAgo';
 import { MATCHES_URL } from '../config';
+import { useFavorites } from '../hooks/useFavorites';
 
 type Match = {
   id: string;
@@ -40,13 +42,18 @@ function matchDate(startsAt: string | null): string {
   }).format(date);
 }
 
-function MatchCard({ match }: { match: Match }) {
+function MatchCard({ match, favorite, onToggleFavorite }: {
+  match: Match;
+  favorite: boolean;
+  onToggleFavorite: () => void;
+}) {
   const score = match.score == null ? '—' : `${match.score.home}:${match.score.away}`;
   return (
     <View style={styles.card}>
       <View style={styles.cardTop}>
         <Text style={styles.date}>{matchDate(match.startsAt)}</Text>
         <Text style={styles.status}>{matchStatus(match)}</Text>
+        <FavoriteButton active={favorite} onPress={onToggleFavorite} />
       </View>
       <View style={styles.teams}>
         <Text style={styles.team}>{match.home.name}</Text>
@@ -68,6 +75,7 @@ async function fetchMatches(signal: AbortSignal): Promise<Match[]> {
 }
 
 export function MatchesScreen() {
+  const { favorites, isFavorite, toggle } = useFavorites();
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
@@ -146,8 +154,15 @@ export function MatchesScreen() {
       ) : !error || matches !== null ? (
         <FlatList
           data={visibleMatches}
+          extraData={favorites}
           keyExtractor={(match) => match.id}
-          renderItem={({ item }) => <MatchCard match={item} />}
+          renderItem={({ item }) => (
+            <MatchCard
+              match={item}
+              favorite={isFavorite(item.id)}
+              onToggleFavorite={() => toggle(item.id)}
+            />
+          )}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <Text style={styles.empty}>
